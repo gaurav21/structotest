@@ -1,0 +1,130 @@
+Index: purejavacomm/src/jtermios/JTermios.java
+===================================================================
+--- purejavacomm/src/jtermios/JTermios.java
++++ purejavacomm/src/jtermios/JTermios.java
+@@ -592,6 +592,9 @@
+ 						buffer.append(", ");
+ 					}
+ 					if ((LOG_MASK & (1 << (7))) != 0) {
++						buffer.append("thread id ");
++						buffer.append(Thread.currentThread().getId());
++						buffer.append(", ");
+ 						buffer.append(Thread.currentThread().getName());
+ 						buffer.append(", ");
+ 					}
+Index: purejavacomm/src/jtermios/windows/JTermiosImpl.java
+===================================================================
+--- purejavacomm/src/jtermios/windows/JTermiosImpl.java
++++ purejavacomm/src/jtermios/windows/JTermiosImpl.java
+@@ -47,6 +47,8 @@
+ import static jtermios.windows.WinAPI.DCB.*;
+ 
+ public class JTermiosImpl implements jtermios.JTermios.JTermiosInterface {
++	private volatile boolean tttimeout = false;
++
+ 	private volatile int m_ErrNo = 0;
+ 
+ 	private volatile boolean m_PortFDs[] = new boolean[FDSetImpl.FD_SET_SIZE];
+@@ -789,6 +791,9 @@
+ 								ready++;
+ 							}
+ 
++							if (!tttimeout) {
++							log = log && log(5, "1. tttimeout %b, ready %d)\n", tttimeout, ready);
++
+ 							if (!ResetEvent(port.m_SelOVL.hEvent))
+ 								port.fail();
+ 
+@@ -807,10 +812,14 @@
+ 								ready = maskToFDSets(port, readfds, writefds, exceptfds, ready);
+ 							} else {
+ 								// FIXME if the port dies on us what happens
++								// if (GetLastError() != ERROR_IO_PENDING && GetLastError() != ERROR_INVALID_PARAMETER)
+ 								if (GetLastError() != ERROR_IO_PENDING)
+ 									port.fail();
+ 								waiting.add(port);
++								ready = 0;
+ 							}
++							log = log && log(5, "1.end tttimeout %b, ready %d)\n", tttimeout, ready);
++							}
+ 						} catch (InterruptedException ie) {
+ 							m_ErrNo = EINTR;
+ 							return -1;
+@@ -818,6 +827,8 @@
+ 
+ 					}
+ 				}
++				log = log && log(5, "2. tttimeout %b, ready %d)\n", tttimeout, ready);
++				tttimeout = true;
+ 				if (ready == 0) {
+ 					int waitn = waiting.size();
+ 					if (waitn > 0) {
+@@ -832,6 +843,8 @@
+ 						int res = WaitForMultipleObjects(waitn * 2, wobj, false, tout);
+ 
+ 						if (res == WAIT_TIMEOUT) {
++							log = log && log(1, "WAIT_TIMEOUT ops\n");
++
+ 							// work around the fact that sometimes we miss
+ 							// events
+ 							for (Port port : waiting) {
+@@ -854,6 +867,7 @@
+ 
+ 						}
+ 						if (res != WAIT_TIMEOUT) {
++							tttimeout = false;
+ 							i = (res - WAIT_OBJECT_0) / 2;
+ 							if (i < 0 || i >= waitn)
+ 								throw new Fail();
+@@ -873,6 +887,7 @@
+ 						}
+ 						return 0;
+ 					}
++				log = log && log(5, "2.end tttimeout %b, ready %d)\n", tttimeout, ready);
+ 				}
+ 			} catch (Fail f) {
+ 				return -1;
+Index: purejavacomm/src/jtermios/windows/WinAPI.java
+===================================================================
+--- purejavacomm/src/jtermios/windows/WinAPI.java
++++ purejavacomm/src/jtermios/windows/WinAPI.java
+@@ -250,6 +250,7 @@
+ 	public static final int FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000;
+ 	public static final int FILE_FLAG_OPEN_NO_RECALL = 0x00100000;
+ 	public static final int FILE_FLAG_FIRST_PIPE_INSTANCE = 0x00080000;
++	public static final int ERROR_INVALID_PARAMETER = 87;
+ 	public static final int ERROR_IO_INCOMPLETE = 996;
+ 	public static final int ERROR_IO_PENDING = 997;
+ 	public static final int ERROR_BROKEN_PIPE = 109;
+@@ -367,7 +368,7 @@
+ 	 * 
+ 	 */
+ 	public static class OVERLAPPED extends Structure {
+-		private static boolean TRACE;
++		// private static boolean TRACE;
+ 		public ULONG_PTR Internal;
+ 		public ULONG_PTR InternalHigh;
+ 		public int Offset;
+@@ -390,8 +391,8 @@
+ 
+ 		public String toString() {
+ 			return String.format(//
+-					"[Offset %d OffsetHigh %d hEvent %s]",//
+-					Offset, OffsetHigh, hEvent.toString());
++					"[Internal %s InternalHigh %s Offset %d OffsetHigh %d hEvent %s]",//
++					Internal, InternalHigh, Offset, OffsetHigh, hEvent.toString());
+ 		}
+ 	}
+ 
+@@ -699,9 +700,9 @@
+ 	}
+ 
+ 	static public boolean WaitCommEvent(HANDLE hFile, IntByReference lpEvtMask, OVERLAPPED ovl) {
+-		log = log && log(5, "> WaitCommEvent(%s, [%d], %s)\n", hFile, lpEvtMask.getValue(), ref(ovl));
++		log = log && log(5, "> WaitCommEvent(%s, [%d], %s, %s)\n", hFile, lpEvtMask.getValue(), ref(ovl), ovl);
+ 		boolean res = m_K32lib.WaitCommEvent(hFile, lpEvtMask, ovl);
+-		log = log && log(4, "< WaitCommEvent(%s, [%d], %s) => %s\n", hFile, lpEvtMask.getValue(), ref(ovl), res);
++		log = log && log(4, "< WaitCommEvent(%s, [%d], %s, %s) => %s\n", hFile, lpEvtMask.getValue(), ref(ovl), ovl, res);
+ 		return res;
+ 	}
+ 
