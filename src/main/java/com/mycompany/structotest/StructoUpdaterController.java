@@ -5,6 +5,13 @@
  */
 package com.mycompany.structotest;
 
+import io.github.khangnt.downloader.DefaultFileManager;
+import io.github.khangnt.downloader.DefaultHttpClient;
+import io.github.khangnt.downloader.EventListener;
+import io.github.khangnt.downloader.FileDownloader;
+import io.github.khangnt.downloader.NonPersistentTaskManager;
+import io.github.khangnt.downloader.model.Task;
+import io.github.khangnt.downloader.model.TaskReport;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -24,6 +31,8 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ResourceBundle;
+import java.util.Scanner;
+import java.util.concurrent.Executor;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javafx.application.Platform;
@@ -57,6 +66,9 @@ public class StructoUpdaterController implements Initializable {
     
     private String versionNumberAvailable;
     
+    private static FileDownloader fileDownloade;
+    static private Task downloadTask;
+    
     @FXML
     private Label label;
     
@@ -87,6 +99,11 @@ public class StructoUpdaterController implements Initializable {
             
     
     
+//    @FXML
+//    private void handleButtonAction(ActionEvent event) {
+//        testFileDownloader();
+//    }
+    
     @FXML
     private void handleButtonAction(ActionEvent event) {
         System.out.println("You clicked me!");
@@ -110,24 +127,25 @@ public class StructoUpdaterController implements Initializable {
             File releaseFile = new File (BASE_PATH  + versionFileName);
             System.out.println("Release file exits " + releaseFile.exists());
             if (!releaseFile.exists()) {
+                testFileDownloader(URL,versionFileName, downloader);
 //                downloadUpdateFiles(URL, versionFileName);
-                  Thread downloadThread = new Thread();
-                  downloadThread = downloadThread(URL,versionFileName, downloader,downloadThread);
-                  downloaderFile.setText("Downloading");
-                  //downloadThread.start();
-                  Thread extractThread = new UnTarThread(downloadThread, versionFileName);
-                  extractorLabel.setText("Extracting");
-                  extractThread.start();
-                  Thread setupThread = new UnTarThread(extractThread, null);
-                  setupLabel.setText("Setting Up");
-                  setupThread.start();
+//                  Thread downloadThread = new Thread();
+//                  downloadThread = downloadThread(URL,versionFileName, downloader,downloadThread);
+//                  downloaderFile.setText("Downloading");
+//                  //downloadThread.start();
+//                  Thread extractThread = new UnTarThread(downloadThread, versionFileName);
+//                  extractorLabel.setText("Extracting");
+//                  extractThread.start();
+//                  Thread setupThread = new UnTarThread(extractThread, null);
+//                  setupLabel.setText("Setting Up");
+//                  setupThread.start();
             } else {
                 extractFiles();
             }
 
         } else // Fresh Install
         {
-            extractFiles();
+            //extractFiles();
         }
         
     }
@@ -135,7 +153,6 @@ public class StructoUpdaterController implements Initializable {
     
     @Override
     public void initialize(URL location, ResourceBundle resources) { 
-        extractFiles ();
         //1.Check if version.txt exits 
         String versionFile = BASE_PATH + VERSION_FILE;
         File f = new File(versionFile);
@@ -383,7 +400,11 @@ public class StructoUpdaterController implements Initializable {
                 try {
                     Console console = new Console(textArea);
                     PrintStream ps = new PrintStream(console);
-                    InputStream setupProcess = Runtime.getRuntime().exec("chmod 775 " + BASE_PATH +"setup.sh").getInputStream();
+//                    InputStream setupProcess;
+//                    InputStreamReader isr;
+//                    BufferedReader buff;
+//                    String line;
+                    InputStream setupProcess = Runtime.getRuntime().exec("chmod +x " + BASE_PATH +"setup.sh").getInputStream();
                     InputStreamReader isr = new InputStreamReader(setupProcess);
                     BufferedReader buff = new BufferedReader (isr);
 
@@ -395,13 +416,13 @@ public class StructoUpdaterController implements Initializable {
                     
                     
                     
-                    setupProcess = Runtime.getRuntime().exec("ls -ltra " + BASE_PATH).getInputStream();
-                    isr = new InputStreamReader(setupProcess);
-                    buff = new BufferedReader (isr);
-
-                    
-                    while((line = buff.readLine()) != null)
-                        System.out.print(line + "\n");
+//                    setupProcess = Runtime.getRuntime().exec("ls -ltra " + BASE_PATH).getInputStream();
+//                    isr = new InputStreamReader(setupProcess);
+//                    buff = new BufferedReader (isr);
+//
+//                    
+//                    while((line = buff.readLine()) != null)
+//                        System.out.print(line + "\n");
                     
                    String[] command = { BASE_PATH +"setup.sh"};   
                    
@@ -420,7 +441,8 @@ public class StructoUpdaterController implements Initializable {
                         ps.close();
                         setupIndicator.setProgress(1);
                     }
-
+                    
+                    setupProcess = Runtime.getRuntime().exec("mv " + BASE_PATH +"temp-version.txt version.txt").getInputStream();
 
                 } catch (IOException ex) {
                     Logger.getLogger(FXMLController.class.getName()).log(Level.SEVERE, null, ex);
@@ -476,4 +498,125 @@ public class StructoUpdaterController implements Initializable {
         return downloadThread;
       }
     
+      public void testFileDownloader(final String fileURL, final String fileName, final ProgressIndicator downloader) {
+          System.out.println(fileURL + " --- " + fileName + " adasdas ");
+        downloadTask = new Task.Builder(BASE_PATH + fileName, fileURL + fileName).setMaxParallelConnections(16).build();
+        fileDownloade = new FileDownloader(new DefaultFileManager(),
+                new DefaultHttpClient(), new NonPersistentTaskManager());
+        fileDownloade.setMaxWorkers(32);
+        fileDownloade.addTask(downloadTask);
+        
+        fileDownloade.registerListener(new EventListener() {
+            
+                
+            
+              @Override
+              public void onTaskAdded(TaskReport taskReport) {
+                  //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+              }
+
+              @Override
+              public void onTaskUpdated(TaskReport taskReport) {
+                  //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                  System.out.println("task updated " + taskReport.calculatePercentDownloaded() + " %");
+                  downloader.setProgress(taskReport.calculatePercentDownloaded()/100);
+              }
+
+              @Override
+              public void onTaskCancelled(TaskReport taskReport) {
+                  //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+              }
+
+              @Override
+              public void onTaskFinished(TaskReport taskReport) {
+                  //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                 System.out.println("task ended" + taskReport.calculateDownloadedLength());
+                 unTarGZip(fileName);
+                 extractFiles();
+              }
+
+              @Override
+              public void onTaskFailed(TaskReport taskReport) {
+                  //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+              }
+
+              @Override
+              public void onResumed() {
+                  //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+              }
+
+              @Override
+              public void onPaused() {
+                  //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+              }
+          }, new Executor() {
+              @Override
+              public void execute(Runnable command) {
+                  command.run();
+                //  throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+              }
+          });
+        fileDownloade.start();
+        
+//        Thread printSpeed = null;
+//        printSpeed = new PrintSpeed(fileDownloade,downloader);
+//        printSpeed.start();
+
+//Platform.runLater(new Runnable() {
+//                            @Override
+//                            public void run() {
+//                                downloader.setProgress(fileDownloade.getTaskReport(downloadTask).calculatePercentDownloaded());
+//                                System.out.println(fileDownloade.getTaskReport(downloadTask).calculatePercentDownloaded() + " %");
+//                            }
+//                        });
+
+
+//        Thread printSpeed = null;
+//        Scanner scanner = new Scanner(System.in);
+//        while (true) {
+//            String command = scanner.next();
+//            if ("stop".equals(command)) {
+//                System.exit(0);
+//            } else if ("pause".equals(command)) {
+//                fileDownloader.pause();
+//                if (printSpeed != null) {
+//                    printSpeed.interrupt();
+//                }
+//            } else if ("start".equals(command)) {
+//                fileDownloader.start();
+//                printSpeed = new PrintSpeed(fileDownloader);
+//                printSpeed.start();
+//            }
+//        }
+      }
+      
+      
+      private static class PrintSpeed extends Thread {
+        private FileDownloader fileDownloader;
+        private ProgressIndicator downloader;
+
+        public PrintSpeed(FileDownloader fileDownloader, ProgressIndicator downloader) {
+            this.fileDownloader = fileDownloader;
+            this.downloader = downloader;
+        }
+
+        
+        
+        
+        
+        @Override
+        public void run() {
+            while (true) {
+                System.out.println(fileDownloader.getSpeed() / 1024 + " KB/s");
+//                downloader.setProgress(fileDownloade.getTaskReport(downloadTask).calculatePercentDownloaded());
+//                                System.out.println(fileDownloade.getTaskReport(downloadTask).calculatePercentDownloaded() + " %");
+                System.out.println(fileDownloader.getTaskReport(downloadTask).calculatePercentDownloaded() + " % ");
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+        }
+    }
 }

@@ -1,0 +1,1 @@
+{"_id":"591984df8d6fc974c0e2dcff","version":"v1.3.8","build_file":"release-v1.3.8.tar.gz","software_list":",PrintQueue.jar,Structo-Cast.jar,Structo-Files.jar,Structo-Updater.jar","checksum":"40fed53f9045ff088addacf856a39875","build_date":"2017-05-07T08:34:45.862Z"}
