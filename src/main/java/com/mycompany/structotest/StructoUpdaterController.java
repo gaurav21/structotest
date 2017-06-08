@@ -31,7 +31,6 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ResourceBundle;
-import java.util.Scanner;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -128,24 +127,13 @@ public class StructoUpdaterController implements Initializable {
             System.out.println("Release file exits " + releaseFile.exists());
             if (!releaseFile.exists()) {
                 testFileDownloader(URL,versionFileName, downloader);
-//                downloadUpdateFiles(URL, versionFileName);
-//                  Thread downloadThread = new Thread();
-//                  downloadThread = downloadThread(URL,versionFileName, downloader,downloadThread);
-//                  downloaderFile.setText("Downloading");
-//                  //downloadThread.start();
-//                  Thread extractThread = new UnTarThread(downloadThread, versionFileName);
-//                  extractorLabel.setText("Extracting");
-//                  extractThread.start();
-//                  Thread setupThread = new UnTarThread(extractThread, null);
-//                  setupLabel.setText("Setting Up");
-//                  setupThread.start();
             } else {
                 extractFiles();
             }
 
-        } else // Fresh Install
+        } else // extract files directly
         {
-            //extractFiles();
+            extractFiles();
         }
         
     }
@@ -173,7 +161,10 @@ public class StructoUpdaterController implements Initializable {
             // Version File exits so output the current version
             System.out.println("file exists");
             String versionNo = readFile_Directory(versionFile);
-            label.setText("Current Version - " + versionNo);
+            if (versionNo != null) {
+                label.setText("Current Version - " + versionNo);
+            }
+            
             
             //update logic
         } else {
@@ -189,14 +180,31 @@ public class StructoUpdaterController implements Initializable {
                     writer.write(updateResponse);
                  }
                 //read the version
-                versionNumberAvailable = readFile_Directory(BASE_PATH + "temp-" +VERSION_FILE);
-                
-                //
-                structoSetupFolders = new File(BASE_PATH + "bin/" + versionNumberAvailable);
-                if (!structoSetupFolders.exists()) {
-                    structoSetupFolders.mkdirs();
+                if (updateResponse != null && !updateResponse.isEmpty()) {
+                    JSONParser parser = new JSONParser();
+                    try {
+                        JSONObject obj = (JSONObject) parser.parse(updateResponse);
+                        if (obj != null) {
+                            versionNumberAvailable = (String) obj.get("version");
+                        }
+                    } catch (ParseException ex) {
+                        Logger.getLogger(StructoUpdaterController.class.getName()).log(Level.SEVERE, null, ex);
+                    }
                 }
-                button.setText("Install - " + versionNumberAvailable);    
+                
+                
+                
+                //versionNumberAvailable = readFile_Directory(BASE_PATH + "temp-" +VERSION_FILE);
+                if (versionNumberAvailable != null) {
+                    structoSetupFolders = new File(BASE_PATH + "bin/" + versionNumberAvailable);
+                    if (!structoSetupFolders.exists()) {
+                        structoSetupFolders.mkdirs();
+                    }
+                    button.setText("Install - " + versionNumberAvailable);    
+                } else {
+                    label.setText("Error Loading Version File. Try Again");
+                }  
+
             } catch (IOException e) {
                 System.out.println(e);
             }
@@ -413,17 +421,6 @@ public class StructoUpdaterController implements Initializable {
                         System.out.print(line);
                     
                     
-                    
-                    
-                    
-//                    setupProcess = Runtime.getRuntime().exec("ls -ltra " + BASE_PATH).getInputStream();
-//                    isr = new InputStreamReader(setupProcess);
-//                    buff = new BufferedReader (isr);
-//
-//                    
-//                    while((line = buff.readLine()) != null)
-//                        System.out.print(line + "\n");
-                    
                    String[] command = { BASE_PATH +"setup.sh"};   
                    
                     Process process = Runtime.getRuntime().exec(command);
@@ -513,6 +510,7 @@ public class StructoUpdaterController implements Initializable {
               @Override
               public void onTaskAdded(TaskReport taskReport) {
                   //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                  downloaderFile.setText("Downloading File");
               }
 
               @Override
@@ -524,12 +522,10 @@ public class StructoUpdaterController implements Initializable {
 
               @Override
               public void onTaskCancelled(TaskReport taskReport) {
-                  //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
               }
 
               @Override
               public void onTaskFinished(TaskReport taskReport) {
-                  //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
                  System.out.println("task ended" + taskReport.calculateDownloadedLength());
                  unTarGZip(fileName);
                  extractFiles();
@@ -538,6 +534,7 @@ public class StructoUpdaterController implements Initializable {
               @Override
               public void onTaskFailed(TaskReport taskReport) {
                   //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                  downloaderFile.setText("File Dowload Failed. Please Restart the application");
               }
 
               @Override
@@ -558,36 +555,6 @@ public class StructoUpdaterController implements Initializable {
           });
         fileDownloade.start();
         
-//        Thread printSpeed = null;
-//        printSpeed = new PrintSpeed(fileDownloade,downloader);
-//        printSpeed.start();
-
-//Platform.runLater(new Runnable() {
-//                            @Override
-//                            public void run() {
-//                                downloader.setProgress(fileDownloade.getTaskReport(downloadTask).calculatePercentDownloaded());
-//                                System.out.println(fileDownloade.getTaskReport(downloadTask).calculatePercentDownloaded() + " %");
-//                            }
-//                        });
-
-
-//        Thread printSpeed = null;
-//        Scanner scanner = new Scanner(System.in);
-//        while (true) {
-//            String command = scanner.next();
-//            if ("stop".equals(command)) {
-//                System.exit(0);
-//            } else if ("pause".equals(command)) {
-//                fileDownloader.pause();
-//                if (printSpeed != null) {
-//                    printSpeed.interrupt();
-//                }
-//            } else if ("start".equals(command)) {
-//                fileDownloader.start();
-//                printSpeed = new PrintSpeed(fileDownloader);
-//                printSpeed.start();
-//            }
-//        }
       }
       
       
